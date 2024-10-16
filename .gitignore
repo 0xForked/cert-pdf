@@ -1,0 +1,13 @@
+.env
+vendor/
+.DS_Store
+bin/
+build/
+coverage.txt
+*.test
+*.out
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
