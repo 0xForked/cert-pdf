@@ -285,7 +285,7 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 		if err := table.DrawTable(); err != nil {
 			return err
 		}
-		nextY += 20
+		nextY += 10
 	}
 
 	return pdf.WritePdf(fmt.Sprintf("%s/%s.pdf", path, c.ReferenceNumber))
