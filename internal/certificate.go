@@ -197,7 +197,7 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 	yPos := startY + 50
 	fontSize := 16
 	startX, textWidth, err := centerText(c.Talent.FullName,
-		"sofia_regular", yPos, 16, 0, 0, 0) // 120
+		"sofia_regular", yPos, 16, 0, 0, 0)
 	if err != nil {
 		return err
 	}
@@ -207,72 +207,134 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 
 	if _, _, err := centerText(
 		"has successfully completed online [non-credit]",
-		"regular", startY+80, 10, 0, 0, 0, // 150
+		"regular", startY+80, 10, 0, 0, 0,
 	); err != nil {
 		return err
 	}
 
 	if _, _, err := centerText(
 		strings.ToUpper(c.Metadata.Name), "rammettoone_regular",
-		startY+115, 18, 0, 0, 0, // 185
+		startY+115, 18, 0, 0, 0,
 	); err != nil {
 		return err
 	}
 
 	if _, _, err := centerText(
 		"A course delivered by School Name and offered through Skilledin Green platform",
-		"regular", startY+145, 10, 0, 0, 0, // 215
+		"regular", startY+145, 10, 0, 0, 0,
 	); err != nil {
 		return err
 	}
 
-	pdf.SetXY(30, startY+180) //250
+	pdf.SetXY(40, startY+170)
 	if err := pdf.Text("Completed proficiency levels and associated knowledge:"); err != nil {
 		return err
 	}
 
+	// thead cannot be hide
+	//nextY := startY + 175.0
+	//marginLeft := 40.0
+	//table := pdf.NewTableLayout(marginLeft, nextY, 0, 3)
+	//table.AddColumn("", gopdf.PageSizeA4Landscape.W*(15.0/100.0), "left")
+	//table.AddColumn("", gopdf.PageSizeA4Landscape.W*(15.0/100.0), "left")
+	//table.AddColumn("", gopdf.PageSizeA4Landscape.W*(50.0/100.0), "left")
+	//for _, level := range c.Metadata.Levels {
+	//	updatedAt := level.UpdatedAt.Format("02 January 2006")
+	//	proficiency := fmt.Sprintf("Level %d (%s)", level.Proficiency, capitalizeFirst(level.Name))
+	//	learningOutcome := level.LearningOutcome
+	//	table.AddRow([]string{updatedAt, proficiency, learningOutcome})
+	//}
+	//table.SetTableStyle(gopdf.CellStyle{
+	//	BorderStyle: gopdf.BorderStyle{
+	//		Top:    false,
+	//		Left:   false,
+	//		Bottom: false,
+	//		Right:  false,
+	//		Width:  0.0,
+	//	},
+	//	FillColor: gopdf.RGBColor{R: 255, G: 255, B: 255}, // White fill to blend with the background
+	//	TextColor: gopdf.RGBColor{R: 0, G: 0, B: 0},       // Black text
+	//	FontSize:  10,
+	//})
+	//table.SetHeaderStyle(gopdf.CellStyle{
+	//	BorderStyle: gopdf.BorderStyle{
+	//		Top:    false,
+	//		Left:   false,
+	//		Bottom: false,
+	//		Right:  false,
+	//		Width:  0.0,
+	//	},
+	//	FillColor: gopdf.RGBColor{R: 255, G: 255, B: 255},
+	//	TextColor: gopdf.RGBColor{R: 255, G: 255, B: 255},
+	//	FontSize:  0,
+	//})
+	//table.SetCellStyle(gopdf.CellStyle{
+	//	BorderStyle: gopdf.BorderStyle{
+	//		Top:    false,
+	//		Left:   false,
+	//		Bottom: false,
+	//		Right:  false,
+	//		Width:  0.0,
+	//	},
+	//	FillColor: gopdf.RGBColor{R: 255, G: 255, B: 255},
+	//	TextColor: gopdf.RGBColor{R: 0, G: 0, B: 0},
+	//	FontSize:  10,
+	//})
+	//if err := table.DrawTable(); err != nil {
+	//	return err
+	//}
+
 	nextY := startY + 185.0
-	const (
-		col1Width = 40
-		col2Width = 60
-		col3Width = 100
-		maxWords  = 10
-	)
+	marginLeft := 40.0
 	for _, level := range c.Metadata.Levels {
-		nextY += 25
-		pdf.SetXY(30, nextY)
+		table := pdf.NewTableLayout(marginLeft, nextY, 0, 3)
+		table.AddColumn("", gopdf.PageSizeA4Landscape.W*(15.0/100.0), "left")
+		table.AddColumn("", gopdf.PageSizeA4Landscape.W*(15.0/100.0), "left")
+		table.AddColumn("", gopdf.PageSizeA4Landscape.W*(50.0/100.0), "left")
 		updatedAt := level.UpdatedAt.Format("02 January 2006")
 		proficiency := fmt.Sprintf("Level %d (%s)", level.Proficiency, capitalizeFirst(level.Name))
 		learningOutcome := level.LearningOutcome
-
-		if err := pdf.Text(updatedAt); err != nil {
+		table.AddRow([]string{updatedAt, proficiency, learningOutcome})
+		table.SetTableStyle(gopdf.CellStyle{
+			BorderStyle: gopdf.BorderStyle{
+				Top:    false,
+				Left:   false,
+				Bottom: false,
+				Right:  false,
+				Width:  0.0,
+			},
+			FillColor: gopdf.RGBColor{R: 255, G: 255, B: 255}, // White fill to blend with the background
+			TextColor: gopdf.RGBColor{R: 0, G: 0, B: 0},       // Black text
+			FontSize:  10,
+		})
+		table.SetHeaderStyle(gopdf.CellStyle{
+			BorderStyle: gopdf.BorderStyle{
+				Top:    false,
+				Left:   false,
+				Bottom: false,
+				Right:  false,
+				Width:  0.0,
+			},
+			FillColor: gopdf.RGBColor{R: 255, G: 255, B: 255},
+			TextColor: gopdf.RGBColor{R: 255, G: 255, B: 255},
+			FontSize:  0,
+		})
+		table.SetCellStyle(gopdf.CellStyle{
+			BorderStyle: gopdf.BorderStyle{
+				Top:    false,
+				Left:   false,
+				Bottom: false,
+				Right:  false,
+				Width:  0.0,
+			},
+			FillColor: gopdf.RGBColor{R: 255, G: 255, B: 255},
+			TextColor: gopdf.RGBColor{R: 0, G: 0, B: 0},
+			FontSize:  10,
+		})
+		if err := table.DrawTable(); err != nil {
 			return err
 		}
-		pdf.SetXY(pdf.GetX()+col1Width, nextY)
-
-		if err := pdf.Text(proficiency); err != nil {
-			return err
-		}
-		pdf.SetXY(pdf.GetX()+col2Width, nextY)
-
-		// Handle the learning outcome with splitting into lines of maxWords
-		learningOutcomeY := nextY
-		words := strings.Fields(learningOutcome) // Split the string into words
-		for i := 0; i < len(words); i += maxWords {
-			// Get the next part of the learning outcome
-			end := i + maxWords
-			if end > len(words) {
-				end = len(words) // Ensure we don't go out of bounds
-			}
-			part := strings.Join(words[i:end], " ") // Join the words back into a string
-			// Print the learning outcome part
-			if err := pdf.Text(part); err != nil {
-				return err
-			}
-			// Move down for the next part
-			learningOutcomeY += 10
-			pdf.SetXY((col2Width+col3Width)*2, learningOutcomeY)
-		}
+		nextY += 30
 	}
 
 	return pdf.WritePdf(fmt.Sprintf("%s/%s.pdf", path, c.ReferenceNumber))
