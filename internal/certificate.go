@@ -2,9 +2,12 @@ package internal
 
 import (
 	"fmt"
+	"image"
 	"io"
 	"net/http"
 	"os"
+	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -103,19 +106,57 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 	if err := pdf.AddTTFFont("kodchasan_regular", "./assets/fonts/kodchasan/Regular.ttf"); err != nil {
 		return err
 	}
-	if err := pdf.AddTTFFont("kodchasan_bold", "./assets/fonts/kodchasan/Bold.ttf"); err != nil {
+	if err := pdf.AddTTFFont("sen_regular", "./assets/fonts/sen/Regular.ttf"); err != nil {
 		return err
 	}
-	if err := pdf.AddTTFFont("kodchasan_italic", "./assets/fonts/kodchasan/Italic.ttf"); err != nil {
+	if err := pdf.AddTTFFont("rammettoone_regular", "./assets/fonts/rammettoone/Regular.ttf"); err != nil {
+		return err
+	}
+	if err := pdf.AddTTFFont("sofia_regular", "./assets/fonts/sofia/Regular.ttf"); err != nil {
 		return err
 	}
 
+	// school image - 200 x 130 - gap to bottom 16px
+	filePath, err := downloadImageFile(
+		filepath.Join(".", "assets", "images"),
+		c.Material.School.Logo)
+	if err != nil {
+		return err
+	}
+	imgFile, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("error opening image: %v", err)
+	}
+	defer func() { _ = imgFile.Close() }()
+	img, _, err := image.Decode(imgFile)
+	if err != nil {
+		return fmt.Errorf("error decoding image: %v", err)
+	}
+	imgWidth := float64(img.Bounds().Dx())
+	imgHeight := float64(img.Bounds().Dy())
+	desiredWidth := 200.0
+	desiredHeight := 130.0
+	aspectRatio := imgWidth / imgHeight
+	if desiredWidth/aspectRatio > desiredHeight {
+		desiredWidth = desiredHeight * aspectRatio
+	} else {
+		desiredHeight = desiredWidth / aspectRatio
+	}
+	xPos := (gopdf.PageSizeA4Landscape.W - desiredWidth) / 2
+	if err := pdf.Image(filePath, xPos, 30, &gopdf.Rect{W: desiredWidth, H: desiredHeight}); err != nil {
+		return fmt.Errorf("error adding image to pdf: %v", err)
+	}
+
+	startY := 30 + desiredHeight + 20
+
 	setFont := func(style string, fontSize int) error {
 		switch style {
-		case "bold":
-			return pdf.SetFont("kodchasan_bold", "", fontSize)
-		case "italic":
-			return pdf.SetFont("kodchasan_italic", "", fontSize)
+		case "sen_regular":
+			return pdf.SetFont("sen_regular", "", fontSize)
+		case "rammettoone_regular":
+			return pdf.SetFont("rammettoone_regular", "", fontSize)
+		case "sofia_regular":
+			return pdf.SetFont("sofia_regular", "", fontSize)
 		default:
 			return pdf.SetFont("kodchasan_regular", "", fontSize)
 		}
@@ -141,21 +182,22 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 
 	if _, _, err := centerText(
 		"C E R T I F I C A T E   O F   C O M P L E T I O N",
-		"regular", 40, 12, 150, 111, 2,
+		"sen_regular", startY, 12, 150, 111, 2,
 	); err != nil {
 		return err
 	}
 
 	if _, _, err := centerText(
 		"This is to certify that", "regular",
-		60, 10, 0, 0, 0,
+		startY+20, 10, 0, 0, 0,
 	); err != nil {
 		return err
 	}
 
-	yPos := 90.0
+	yPos := startY + 50
 	fontSize := 16
-	startX, textWidth, err := centerText(c.Talent.FullName, "italic", 90, 16, 0, 0, 0)
+	startX, textWidth, err := centerText(c.Talent.FullName,
+		"sofia_regular", yPos, 16, 0, 0, 0) // 120
 	if err != nil {
 		return err
 	}
@@ -165,31 +207,31 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 
 	if _, _, err := centerText(
 		"has successfully completed online [non-credit]",
-		"regular", 120, 10, 0, 0, 0,
+		"regular", startY+80, 10, 0, 0, 0, // 150
 	); err != nil {
 		return err
 	}
 
 	if _, _, err := centerText(
-		strings.ToUpper(c.Metadata.Name), "bold", 155,
-		18, 0, 0, 0,
+		strings.ToUpper(c.Metadata.Name), "rammettoone_regular",
+		startY+115, 18, 0, 0, 0, // 185
 	); err != nil {
 		return err
 	}
 
 	if _, _, err := centerText(
 		"A course delivered by School Name and offered through Skilledin Green platform",
-		"regular", 185, 10, 0, 0, 0,
+		"regular", startY+145, 10, 0, 0, 0, // 215
 	); err != nil {
 		return err
 	}
 
-	pdf.SetXY(30, 220)
+	pdf.SetXY(30, startY+180) //250
 	if err := pdf.Text("Completed proficiency levels and associated knowledge:"); err != nil {
 		return err
 	}
 
-	nextY := 225.0
+	nextY := startY + 185.0
 	const (
 		col1Width = 40
 		col2Width = 60
@@ -243,28 +285,27 @@ func capitalizeFirst(s string) string {
 	return strings.ToUpper(string(s[0])) + s[1:]
 }
 
-// download file first
-// then load from file
-//if err := pdf.Image(c.Material.School.Logo, 200, 50, nil); err != nil {
-//	return err
-//}
-
-func downloadFile(filepath string, url string) error {
-	// check folder exist or not
-	// if not create
-	// Get the data
+func downloadImageFile(dirPath string, url string) (string, error) {
+	// Extract the file name from the URL
+	fileName := path.Base(url)
+	// Create the full file path
+	fullFilePath := filepath.Join(dirPath, fileName)
+	// Download the image
 	resp, err := http.Get(url)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	// Create the file
-	out, err := os.Create(filepath)
+	out, err := os.Create(fullFilePath)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = out.Close() }()
-	// Write the body to file
+	// Write the body to the file
 	_, err = io.Copy(out, resp.Body)
-	return err
+	if err != nil {
+		return "", err
+	}
+	return fullFilePath, nil
 }
