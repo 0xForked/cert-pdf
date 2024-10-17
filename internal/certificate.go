@@ -231,59 +231,10 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 		return err
 	}
 
-	// thead cannot be hide
-	//nextY := startY + 175.0
-	//marginLeft := 40.0
-	//table := pdf.NewTableLayout(marginLeft, nextY, 0, 3)
-	//table.AddColumn("", gopdf.PageSizeA4Landscape.W*(15.0/100.0), "left")
-	//table.AddColumn("", gopdf.PageSizeA4Landscape.W*(15.0/100.0), "left")
-	//table.AddColumn("", gopdf.PageSizeA4Landscape.W*(50.0/100.0), "left")
-	//for _, level := range c.Metadata.Levels {
-	//	updatedAt := level.UpdatedAt.Format("02 January 2006")
-	//	proficiency := fmt.Sprintf("Level %d (%s)", level.Proficiency, capitalizeFirst(level.Name))
-	//	learningOutcome := level.LearningOutcome
-	//	table.AddRow([]string{updatedAt, proficiency, learningOutcome})
-	//}
-	//table.SetTableStyle(gopdf.CellStyle{
-	//	BorderStyle: gopdf.BorderStyle{
-	//		Top:    false,
-	//		Left:   false,
-	//		Bottom: false,
-	//		Right:  false,
-	//		Width:  0.0,
-	//	},
-	//	FillColor: gopdf.RGBColor{R: 255, G: 255, B: 255}, // White fill to blend with the background
-	//	TextColor: gopdf.RGBColor{R: 0, G: 0, B: 0},       // Black text
-	//	FontSize:  10,
-	//})
-	//table.SetHeaderStyle(gopdf.CellStyle{
-	//	BorderStyle: gopdf.BorderStyle{
-	//		Top:    false,
-	//		Left:   false,
-	//		Bottom: false,
-	//		Right:  false,
-	//		Width:  0.0,
-	//	},
-	//	FillColor: gopdf.RGBColor{R: 255, G: 255, B: 255},
-	//	TextColor: gopdf.RGBColor{R: 255, G: 255, B: 255},
-	//	FontSize:  0,
-	//})
-	//table.SetCellStyle(gopdf.CellStyle{
-	//	BorderStyle: gopdf.BorderStyle{
-	//		Top:    false,
-	//		Left:   false,
-	//		Bottom: false,
-	//		Right:  false,
-	//		Width:  0.0,
-	//	},
-	//	FillColor: gopdf.RGBColor{R: 255, G: 255, B: 255},
-	//	TextColor: gopdf.RGBColor{R: 0, G: 0, B: 0},
-	//	FontSize:  10,
-	//})
-	//if err := table.DrawTable(); err != nil {
-	//	return err
-	//}
-
+	// Why create a table for each level?
+	// Because the default table header makes the data presentation unattractive.
+	// Therefore, we need to set the row height to 0 and manually adjust the
+	// padding or margin by modifying the nextY position.
 	nextY := startY + 185.0
 	marginLeft := 40.0
 	for _, level := range c.Metadata.Levels {
@@ -334,7 +285,7 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 		if err := table.DrawTable(); err != nil {
 			return err
 		}
-		nextY += 30
+		nextY += 20
 	}
 
 	return pdf.WritePdf(fmt.Sprintf("%s/%s.pdf", path, c.ReferenceNumber))
