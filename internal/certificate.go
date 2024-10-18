@@ -212,7 +212,7 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 	pdf.Line(startX, underlineY, startX+textWidth, underlineY)
 
 	if _, _, err := centerText(
-		"has successfully completed online [non-credit]",
+		"has successfully completed online course",
 		"regular", startY+80, 10, 0, 0, 0,
 	); err != nil {
 		return err
@@ -226,7 +226,8 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 	}
 
 	if _, _, err := centerText(
-		"A course delivered by School Name and offered through Skilledin Green platform",
+		fmt.Sprintf("A course delivered by %s and offered through Skilledin Green platform",
+			c.Material.School.Name),
 		"regular", startY+145, 10, 0, 0, 0,
 	); err != nil {
 		return err
