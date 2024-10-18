@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -236,7 +237,9 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 	// Therefore, we need to set the row height to 0 and manually adjust the
 	// padding or margin by modifying the nextY position.
 	nextY := startY + 185.0
-	marginLeft := 40.0
+	marginLeft := 50.0
+	baseHeight := 10.0
+	lineHeight := 10.0
 	for _, level := range c.Metadata.Levels {
 		table := pdf.NewTableLayout(marginLeft, nextY, 0, 3)
 		table.AddColumn("", gopdf.PageSizeA4Landscape.W*(15.0/100.0), "left")
@@ -244,7 +247,7 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 		table.AddColumn("", gopdf.PageSizeA4Landscape.W*(50.0/100.0), "left")
 		updatedAt := level.UpdatedAt.Format("02 January 2006")
 		proficiency := fmt.Sprintf("Level %d (%s)", level.Proficiency, capitalizeFirst(level.Name))
-		learningOutcome := level.LearningOutcome
+		learningOutcome := removeHTMLTags(level.LearningOutcome)
 		table.AddRow([]string{updatedAt, proficiency, learningOutcome})
 		table.SetTableStyle(gopdf.CellStyle{
 			BorderStyle: gopdf.BorderStyle{
@@ -285,7 +288,10 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 		if err := table.DrawTable(); err != nil {
 			return err
 		}
-		nextY += 10
+		// Estimate the number of lines in learningOutcome
+		columnWidth := gopdf.PageSizeA4Landscape.W * (50.0 / 100.0)
+		estimatedLines := int(float64(len(learningOutcome))/(columnWidth/6.0)) + 1
+		nextY += float64(estimatedLines)*lineHeight + baseHeight
 	}
 
 	return pdf.WritePdf(fmt.Sprintf("%s/%s.pdf", path, c.ReferenceNumber))
@@ -296,6 +302,11 @@ func capitalizeFirst(s string) string {
 		return s
 	}
 	return strings.ToUpper(string(s[0])) + s[1:]
+}
+
+func removeHTMLTags(input string) string {
+	re := regexp.MustCompile("<.*?>")
+	return re.ReplaceAllString(input, "")
 }
 
 func downloadImageFile(dirPath string, url string) (string, error) {
