@@ -15,6 +15,7 @@ var (
 )
 
 type Config struct {
+	WebURL  string `mapstructure:"WEB_URL"`
 	BaseURL string `mapstructure:"API_URL"`
 	CertKey string `mapstructure:"CERT_KEY"`
 	CertVal string `mapstructure:"CERT_VAL"`

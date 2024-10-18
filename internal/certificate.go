@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/signintech/gopdf"
+	"github.com/yeqown/go-qrcode/v2"
+	"github.com/yeqown/go-qrcode/writer/standard"
 )
 
 type PreGenerateCertificate struct {
@@ -105,6 +107,9 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 	pdf.AddPage()
 
 	if err := pdf.AddTTFFont("kodchasan_regular", "./assets/fonts/kodchasan/Regular.ttf"); err != nil {
+		return err
+	}
+	if err := pdf.AddTTFFont("kodchasan_semibold", "./assets/fonts/kodchasan/SemiBold.ttf"); err != nil {
 		return err
 	}
 	if err := pdf.AddTTFFont("sen_regular", "./assets/fonts/sen/Regular.ttf"); err != nil {
@@ -227,7 +232,7 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 		return err
 	}
 
-	pdf.SetXY(40, startY+170)
+	pdf.SetXY(50, startY+170)
 	if err := pdf.Text("Completed proficiency levels and associated knowledge:"); err != nil {
 		return err
 	}
@@ -294,6 +299,99 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 		nextY += float64(estimatedLines)*lineHeight + baseHeight
 	}
 
+	qrCodeUrl, err := generateQRCode(c.ReferenceNumber)
+	if err != nil {
+		return err
+	}
+
+	// add school signature
+	signaturePath, err := downloadImageFile(
+		filepath.Join(".", "assets", "images"),
+		*c.Material.Signature)
+	if err != nil {
+		return err
+	}
+	signatureFile, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("error opening image: %v", err)
+	}
+	defer func() { _ = signatureFile.Close() }()
+	signatureImg, _, err := image.Decode(signatureFile)
+	if err != nil {
+		return fmt.Errorf("error decoding image: %v", err)
+	}
+	signatureImgWidth := float64(signatureImg.Bounds().Dx())
+	signatureImgHeight := float64(signatureImg.Bounds().Dy())
+	desiredSignatureWidth := 74.0
+	desiredSignatureHeight := 74.0
+	signatureAspectRatio := signatureImgWidth / signatureImgHeight
+	if desiredSignatureWidth/signatureAspectRatio > desiredSignatureHeight {
+		desiredSignatureWidth = desiredSignatureHeight * signatureAspectRatio
+	} else {
+		desiredSignatureHeight = desiredSignatureWidth / signatureAspectRatio
+	}
+	if err := pdf.Image(
+		signaturePath, xPos-250, nextY+15,
+		&gopdf.Rect{W: desiredSignatureWidth, H: desiredSignatureHeight},
+	); err != nil {
+		return fmt.Errorf("error adding image to pdf: %v", err)
+	}
+	// signature underline
+	signatureUnderlineY := nextY + 15 + desiredSignatureWidth - 10
+	pdf.SetLineWidth(0.5)
+	pdf.Line(xPos-250, signatureUnderlineY, xPos-200+textWidth, signatureUnderlineY)
+	// signature owner name
+	signatureOwnerNameY := signatureUnderlineY + 20.0
+	pdf.SetXY(xPos-250, signatureOwnerNameY)
+	_ = pdf.SetFont("kodchasan_semibold", "", 10)
+	if err := pdf.Text(fmt.Sprintf("%s %s",
+		c.Material.Owner.FirstName, c.Material.Owner.LastName,
+	)); err != nil {
+		return fmt.Errorf("error adding text below image: %v", err)
+	}
+	// signature owner role
+	signatureOwnerRoleY := signatureOwnerNameY + 15.0
+	pdf.SetXY(xPos-250, signatureOwnerRoleY)
+	_ = pdf.SetFont("kodchasan_regular", "", 9)
+	if err := pdf.Text(fmt.Sprintf("%s, %s",
+		c.Material.Owner.JobTitle, c.Material.School.Name,
+	)); err != nil {
+		return fmt.Errorf("error adding text below image: %v", err)
+	}
+	// current time
+	currentDateY := signatureOwnerRoleY + 15.0
+	pdf.SetXY(xPos-250, currentDateY)
+	_ = pdf.SetFont("kodchasan_regular", "", 10)
+	if err := pdf.Text(time.Now().Format("02 January 2006")); err != nil {
+		return fmt.Errorf("error adding text below image: %v", err)
+	}
+
+	// add skilledin logo
+	if err := pdf.Image(
+		"./assets/images/green_skills_logo.png",
+		xPos, nextY+15, &gopdf.Rect{W: 80.0, H: 80.0},
+	); err != nil {
+		return fmt.Errorf("error adding image to pdf: %v", err)
+	}
+	skilledinTextY := nextY + 15 + 74.0 + 10.0
+	pdf.SetXY(xPos+5, skilledinTextY)
+	if err := pdf.Text("SkilledIn Green"); err != nil {
+		return fmt.Errorf("error adding text below image: %v", err)
+	}
+
+	// add qrcode
+	if err := pdf.Image(
+		qrCodeUrl, xPos+250, nextY+15,
+		&gopdf.Rect{W: 74.0, H: 74.0},
+	); err != nil {
+		return fmt.Errorf("error adding image to pdf: %v", err)
+	}
+	qrcodeTextY := nextY + 15 + 74.0 + 10.0
+	pdf.SetXY(xPos+250, qrcodeTextY)
+	if err := pdf.Text("Online Version"); err != nil {
+		return fmt.Errorf("error adding text below image: %v", err)
+	}
+
 	return pdf.WritePdf(fmt.Sprintf("%s/%s.pdf", path, c.ReferenceNumber))
 }
 
@@ -307,6 +405,22 @@ func capitalizeFirst(s string) string {
 func removeHTMLTags(input string) string {
 	re := regexp.MustCompile("<.*?>")
 	return re.ReplaceAllString(input, "")
+}
+
+func generateQRCode(refNum string) (string, error) {
+	qrc, err := qrcode.New(fmt.Sprintf("%s/public-preview-certif/%s", Instance.WebURL, refNum))
+	if err != nil {
+		return "", fmt.Errorf("could not generate QRCode: %v", err)
+	}
+	filePath := fmt.Sprintf("./assets/images/%s.jpeg", refNum)
+	w, err := standard.New(filePath)
+	if err != nil {
+		return "", fmt.Errorf("standard.New failed: %v", err)
+	}
+	if err = qrc.Save(w); err != nil {
+		return "", fmt.Errorf("could not save image: %v", err)
+	}
+	return filePath, nil
 }
 
 func downloadImageFile(dirPath string, url string) (string, error) {
