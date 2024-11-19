@@ -72,8 +72,14 @@ type SocialURL struct {
 }
 
 type CourseProgramItem struct {
-	ID   string `json:"id" bson:"_id"`
-	Name string `json:"name" bson:"name"`
+	ID    string                `json:"id" `
+	Name  string                `json:"name"`
+	Skill []*CourseProgramSkill `json:"skills"`
+}
+
+type CourseProgramSkill struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type CourseMetadata struct {
@@ -102,10 +108,10 @@ type User struct {
 }
 
 func (c PreGenerateCertificate) GeneratePDF(path string) error {
-	pdf := gopdf.GoPdf{}
+	pdf := &gopdf.GoPdf{}
 	pdf.Start(gopdf.Config{PageSize: *gopdf.PageSizeA4Landscape})
 	pdf.AddPage()
-
+	// register used font
 	if err := pdf.AddTTFFont("kodchasan_regular", "./assets/fonts/kodchasan/Regular.ttf"); err != nil {
 		return err
 	}
@@ -121,7 +127,6 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 	if err := pdf.AddTTFFont("sofia_regular", "./assets/fonts/sofia/Regular.ttf"); err != nil {
 		return err
 	}
-
 	// school image - 200 x 130 - gap to bottom 16px
 	filePath, err := downloadImageFile(
 		filepath.Join(".", "assets", "images"),
@@ -203,7 +208,7 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 	yPos := startY + 50
 	fontSize := 16
 	startX, textWidth, err := centerText(c.Talent.FullName,
-		"sofia_regular", yPos, 16, 0, 0, 0)
+		"sofia_regular", yPos, 18, 0, 0, 0)
 	if err != nil {
 		return err
 	}
@@ -211,30 +216,40 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 	pdf.SetLineWidth(0.5)
 	pdf.Line(startX, underlineY, startX+textWidth, underlineY)
 
-	if _, _, err := centerText(
-		"has successfully completed online course",
-		"regular", startY+80, 10, 0, 0, 0,
-	); err != nil {
-		return err
+	switch c.Collection {
+	case "course":
+		if _, _, err := centerText(
+			"has successfully completed online [non-credit]",
+			"regular", startY+80, 10, 0, 0, 0,
+		); err != nil {
+			return err
+		}
+	case "program":
+		if _, _, err := centerText(
+			"has successfully completed",
+			"regular", startY+80, 10, 0, 0, 0,
+		); err != nil {
+			return err
+		}
 	}
 
 	if _, _, err := centerText(
-		strings.ToUpper(c.Metadata.Name), "rammettoone_regular",
+		strings.ToUpper(func() string {
+			if c.Collection == "program" {
+				return c.Program.Name
+			}
+			return c.Metadata.Name
+		}()), "rammettoone_regular",
 		startY+115, 18, 0, 0, 0,
 	); err != nil {
 		return err
 	}
 
 	if _, _, err := centerText(
-		fmt.Sprintf("A course delivered by %s and offered through Skilledin Green platform",
-			c.Material.School.Name),
+		fmt.Sprintf("A %s delivered by %s and offered through Skilledin Green platform",
+			c.Collection, c.Material.School.Name),
 		"regular", startY+145, 10, 0, 0, 0,
 	); err != nil {
-		return err
-	}
-
-	pdf.SetXY(50, startY+170)
-	if err := pdf.Text("Completed proficiency levels and associated knowledge:"); err != nil {
 		return err
 	}
 
@@ -243,14 +258,50 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 	// Therefore, we need to set the row height to 0 and manually adjust the
 	// padding or margin by modifying the nextY position.
 	nextY := startY + 185.0
+	switch c.Collection {
+	case "course":
+		pdf.SetXY(50, startY+170)
+		if err := pdf.Text("Completed proficiency levels and associated knowledge:"); err != nil {
+			return err
+		}
+
+		if err := c.addPDFCourseContent(pdf, &nextY); err != nil {
+			return err
+		}
+	case "program":
+		var skillsName []string
+		for _, s := range c.Program.Skill {
+			skillsName = append(skillsName, s.Name)
+		}
+		sn := strings.Join(skillsName, ", ")
+		if _, _, err := centerText(
+			fmt.Sprintf("Skills and Modules: %s", sn),
+			"regular", startY+170, 10, 0, 0, 0,
+		); err != nil {
+			return err
+		}
+
+	}
+
+	if err := c.addPDFFooter(pdf, filePath, xPos, nextY, textWidth); err != nil {
+		return err
+	}
+
+	return pdf.WritePdf(fmt.Sprintf("%s/%s.pdf", path, c.ReferenceNumber))
+}
+
+func (c PreGenerateCertificate) addPDFCourseContent(
+	pdf *gopdf.GoPdf,
+	nextY *float64,
+) error {
 	marginLeft := 50.0
 	baseHeight := 10.0
 	lineHeight := 10.0
 	for _, level := range c.Metadata.Levels {
-		table := pdf.NewTableLayout(marginLeft, nextY, 0, 3)
+		table := pdf.NewTableLayout(marginLeft, *nextY, 0, 3)
 		table.AddColumn("", gopdf.PageSizeA4Landscape.W*(15.0/100.0), "left")
 		table.AddColumn("", gopdf.PageSizeA4Landscape.W*(15.0/100.0), "left")
-		table.AddColumn("", gopdf.PageSizeA4Landscape.W*(50.0/100.0), "left")
+		table.AddColumn("", gopdf.PageSizeA4Landscape.W*(55.0/100.0), "left")
 		updatedAt := level.UpdatedAt.Format("02 January 2006")
 		proficiency := fmt.Sprintf("Level %d (%s)", level.Proficiency, capitalizeFirst(level.Name))
 		learningOutcome := removeHTMLTags(level.LearningOutcome)
@@ -297,14 +348,16 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 		// Estimate the number of lines in learningOutcome
 		columnWidth := gopdf.PageSizeA4Landscape.W * (50.0 / 100.0)
 		estimatedLines := int(float64(len(learningOutcome))/(columnWidth/6.0)) + 1
-		nextY += float64(estimatedLines)*lineHeight + baseHeight
+		*nextY += float64(estimatedLines)*lineHeight + baseHeight
 	}
+	return nil
+}
 
-	qrCodeUrl, err := generateQRCode(c.ReferenceNumber)
-	if err != nil {
-		return err
-	}
-
+func (c PreGenerateCertificate) addPDFFooter(
+	pdf *gopdf.GoPdf,
+	filePath string,
+	xPos, nextY, textWidth float64,
+) error {
 	// add school signature
 	signaturePath, err := downloadImageFile(
 		filepath.Join(".", "assets", "images"),
@@ -332,7 +385,7 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 		desiredSignatureHeight = desiredSignatureWidth / signatureAspectRatio
 	}
 	if err := pdf.Image(
-		signaturePath, xPos-250, nextY+15,
+		signaturePath, xPos-230, nextY+15,
 		&gopdf.Rect{W: desiredSignatureWidth, H: desiredSignatureHeight},
 	); err != nil {
 		return fmt.Errorf("error adding image to pdf: %v", err)
@@ -369,31 +422,35 @@ func (c PreGenerateCertificate) GeneratePDF(path string) error {
 
 	// add skilledin logo
 	if err := pdf.Image(
-		"./assets/images/green_skills_logo.png",
-		xPos, nextY+15, &gopdf.Rect{W: 80.0, H: 80.0},
+		"./assets/images/watermark.png",
+		xPos+10, nextY+15, &gopdf.Rect{W: 70.0, H: 60.0},
 	); err != nil {
 		return fmt.Errorf("error adding image to pdf: %v", err)
 	}
-	skilledinTextY := nextY + 15 + 74.0 + 10.0
-	pdf.SetXY(xPos+5, skilledinTextY)
+	skilledinTextY := nextY + 15 + 85.0 + 10.0
+	pdf.SetXY(xPos+10, skilledinTextY)
 	if err := pdf.Text("SkilledIn Green"); err != nil {
 		return fmt.Errorf("error adding text below image: %v", err)
 	}
 
 	// add qrcode
+	qrCodeUrl, err := generateQRCode(c.ReferenceNumber)
+	if err != nil {
+		return err
+	}
 	if err := pdf.Image(
-		qrCodeUrl, xPos+250, nextY+15,
-		&gopdf.Rect{W: 74.0, H: 74.0},
+		qrCodeUrl, xPos+260, nextY+15,
+		&gopdf.Rect{W: 64.0, H: 64.0},
 	); err != nil {
 		return fmt.Errorf("error adding image to pdf: %v", err)
 	}
-	qrcodeTextY := nextY + 15 + 74.0 + 10.0
-	pdf.SetXY(xPos+250, qrcodeTextY)
+	qrcodeTextY := nextY + 15 + 85.0 + 10.0
+	pdf.SetXY(xPos+255, qrcodeTextY)
 	if err := pdf.Text("Online Version"); err != nil {
 		return fmt.Errorf("error adding text below image: %v", err)
 	}
 
-	return pdf.WritePdf(fmt.Sprintf("%s/%s.pdf", path, c.ReferenceNumber))
+	return nil
 }
 
 func capitalizeFirst(s string) string {

@@ -15,10 +15,11 @@ var (
 )
 
 type Config struct {
-	WebURL  string `mapstructure:"WEB_URL"`
-	BaseURL string `mapstructure:"API_URL"`
-	CertKey string `mapstructure:"CERT_KEY"`
-	CertVal string `mapstructure:"CERT_VAL"`
+	WebURL         string `mapstructure:"WEB_URL"`
+	BaseURL        string `mapstructure:"API_URL"`
+	CertKey        string `mapstructure:"CERT_KEY"`
+	CourseCertVal  string `mapstructure:"COURSE_CERT_VAL"`
+	ProgramCertVal string `mapstructure:"PROGRAM_CERT_VAL"`
 }
 
 func LoadEnv() {

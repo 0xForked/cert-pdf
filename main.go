@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 
 	"github.com/0xForked/pdf-gen/internal"
 	"github.com/spf13/viper"
@@ -15,9 +16,19 @@ func init() {
 func main() {
 	// get config instance
 	instance := internal.Instance
+	// get user input (basic impl)
+	var certValItem string
+	if len(os.Args) > 1 && os.Args[1] == "course" {
+		certValItem = instance.CourseCertVal
+	} else if len(os.Args) > 1 && os.Args[1] == "program" {
+		certValItem = instance.ProgramCertVal
+	} else {
+		certValItem = instance.CourseCertVal
+	}
 	// build app repo & load cert by its key and value
 	repo := internal.Repository{BaseURL: instance.BaseURL}
-	raw, err := repo.LoadCert(context.Background(), instance.CertKey, instance.CertVal)
+	raw, err := repo.LoadCert(context.Background(),
+		instance.CertKey, certValItem)
 	if err != nil {
 		panic(err)
 	}
